@@ -23,7 +23,8 @@ def parse_config():
     # data configuration
     parser.add_argument("--whole_word_masking", type=str, default='False', 
         help="whether apply whole word masking during pretraining.")
-    parser.add_argument("--train_data", type=str, help="path to the pre-training data")
+    parser.add_argument("--train_data_lang1", type=str, help="path to the pre-training data")
+    parser.add_argument("--train_data_lang2", type=str, help="path to the pre-training data")
     parser.add_argument("--max_len", type=int, help="maximum length for each sequence.")
 
     # mini-batch training configuration
@@ -84,41 +85,58 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
     else:
         raise Exception("Wrong language specification")
     print ('Loading data...')
-    data = PretrainCorpus(tokenizer, args.train_data, max_len, whole_word_masking=whole_word_masking)
+    data_lang1 = PretrainCorpus(tokenizer, args.train_data_lang1, max_len, whole_word_masking=whole_word_masking)
+    data_lang2 = PretrainCorpus(tokenizer, args.train_data_lang2, max_len, whole_word_masking=whole_word_masking)
     print ('Data loaded.')
     #for truth, inp, seg, msk, attn_mask, nxt_snt_flag in data:
     while effective_batch_acm < total_steps:
         #print (all_batch_step, gradient_accumulation_steps)
-        truth, inp, seg, msk, attn_mask, labels, contrastive_labels, nxt_snt_flag = \
-        data.get_batch_data(dataset_batch_size)
+        truth_lang1, inp_lang1, seg_lang1, msk_lang1, attn_mask_lang1, labels_lang1, contrastive_labels_lang1, nxt_snt_flag_lang1 = \
+        data_lang1.get_batch_data(dataset_batch_size)
+
+        truth_lang2, inp_lang2, seg_lang2, msk_lang2, attn_mask_lang2, labels_lang2, contrastive_labels_lang2, nxt_snt_flag_lang2 = \
+        data_lang2.get_batch_data(dataset_batch_size)
+
         all_batch_step += 1
         # have one small batch of data
         if effective_batch_acm <= warmup_steps:
             update_lr(optimizer, args.learning_rate*effective_batch_acm/warmup_steps)
 
         if cuda_available:
-            truth = truth.cuda(device)
-            inp = inp.cuda(device)
-            seg = seg.cuda(device)
-            msk = msk.cuda(device)
-            attn_mask = attn_mask.cuda(device)
-            nxt_snt_flag = nxt_snt_flag.cuda(device)
-            labels = labels.cuda(device)
-            contrastive_labels = contrastive_labels.cuda(device)
-        bsz = truth.size()[0]
+            truth_lang1 = truth_lang1.cuda(device)
+            inp_lang1 = inp_lang1.cuda(device)
+            seg_lang1 = seg_lang1.cuda(device)
+            msk_lang1 = msk_lang1.cuda(device)
+            attn_mask_lang1 = attn_mask_lang1.cuda(device)
+            nxt_snt_flag_lang1 = nxt_snt_flag_lang1.cuda(device)
+            labels_lang1 = labels_lang1.cuda(device)
+            contrastive_labels_lang1 = contrastive_labels_lang1.cuda(device)
 
-        loss, mlm_correct_num, tot_tokens, nxt_snt_correct_num, correct_contrastive_num, total_contrastive_num = \
-        model(truth, inp, seg, msk, attn_mask, labels, contrastive_labels, nxt_snt_flag)
+            truth_lang2 = truth_lang2.cuda(device)
+            inp_lang2 = inp_lang2.cuda(device)
+            seg_lang2 = seg_lang2.cuda(device)
+            msk_lang2 = msk_lang2.cuda(device)
+            attn_mask_lang2 = attn_mask_lang2.cuda(device)
+            nxt_snt_flag_lang2 = nxt_snt_flag_lang2.cuda(device)
+            labels_lang2 = labels_lang2.cuda(device)
+            contrastive_labels_lang2 = contrastive_labels_lang2.cuda(device)
+
+        bsz = truth_lang1.size()[0]
+
+        loss, mlm_correct_num, tot_tokens, nxt_snt_correct_num = \
+        model(truth_lang1, inp_lang1, seg_lang1, msk_lang1, attn_mask_lang1, labels_lang1, contrastive_labels_lang1, nxt_snt_flag_lang1,
+        truth_lang2, inp_lang2, seg_lang2, msk_lang2, attn_mask_lang2, labels_lang2, contrastive_labels_lang2, nxt_snt_flag_lang2)
+
 
         mlm_correct_num = torch.sum(mlm_correct_num).item()
         tot_tokens = torch.sum(tot_tokens).item()
         nxt_snt_correct_num = torch.sum(nxt_snt_correct_num).item()
-        correct_contrastive_num = torch.sum(correct_contrastive_num).item()
+        # correct_contrastive_num = torch.sum(correct_contrastive_num).item()
 
         # keep track of intermediate result
         ntokens_acm += tot_tokens
         mlm_acm += mlm_correct_num
-        contrastive_acc_acm += correct_contrastive_num
+        # contrastive_acc_acm += correct_contrastive_num
         acc_nxt_acm += nxt_snt_correct_num
         npairs_acm += bsz
             
@@ -138,32 +156,32 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
         # print intermediate result
         if effective_batch_acm % args.print_every == 0 and print_valid:
             one_train_loss = train_loss / (effective_batch_acm * gradient_accumulation_steps)
-            middle_acc, contrastive_acc = mlm_acm / ntokens_acm, contrastive_acc_acm / ntokens_acm
+            middle_acc = mlm_acm / ntokens_acm #, contrastive_acc_acm / ntokens_acm
             nxt_snt_acc = acc_nxt_acm / npairs_acm
 
             middle_acc = round(middle_acc*100,3)
-            contrastive_acc = round(contrastive_acc*100,3)
+            # contrastive_acc = round(contrastive_acc*100,3)
             nxt_snt_acc = round(nxt_snt_acc*100,3)
 
-            print ('At training steps {}, training loss is {}, middle mlm acc is {}, contrastive acc is {}, \
-                next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, contrastive_acc, nxt_snt_acc))
+            print ('At training steps {}, training loss is {}, middle mlm acc is {}, \
+                next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, nxt_snt_acc))
             print_valid = False
 
         # saving result
         if effective_batch_acm % args.save_every == 0 and save_valid:
             one_train_loss = train_loss / (args.save_every * gradient_accumulation_steps)
-            middle_acc, contrastive_acc = mlm_acm / ntokens_acm, contrastive_acc_acm / ntokens_acm
+            middle_acc = mlm_acm / ntokens_acm #, contrastive_acc_acm / ntokens_acm
             nxt_snt_acc = acc_nxt_acm / npairs_acm
 
             middle_acc = round(middle_acc*100,3)
-            contrastive_acc = round(contrastive_acc*100,3)
+            # contrastive_acc = round(contrastive_acc*100,3)
             nxt_snt_acc = round(nxt_snt_acc*100,3)
 
-            print ('At training steps {}, training loss is {}, middle mlm acc is {}, contrastive acc is {}, \
-                next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, contrastive_acc, nxt_snt_acc))
+            print ('At training steps {}, training loss is {}, middle mlm acc is {}, \
+                next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, nxt_snt_acc))
             print ('Saving Model...')
-            save_name = 'training_step_{}_middle_mlm_acc_{}_contrastive_acc_{}_nxt_sen_acc_{}'.format(effective_batch_acm,
-                middle_acc, contrastive_acc, nxt_snt_acc)
+            save_name = 'training_step_{}_middle_mlm_acc_{}_nxt_sen_acc_{}'.format(effective_batch_acm,
+                middle_acc, nxt_snt_acc)
             save_valid = False
 
 
