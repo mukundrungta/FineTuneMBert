@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import re
 from google_bert import create_instances_from_document
+import pickle as pkl
 
 UNK, SEP, PAD, CLS, MASK = "[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]"
 class PretrainCorpus(object):
@@ -18,25 +19,29 @@ class PretrainCorpus(object):
         self.unk_id, self.sep_id, self.pad_id, self.cls_id, self.mask_id = self.special_token_id_list
         self.max_len = max_len
         self.filename = filename
-        self.stream = open(self.filename, encoding='utf8')
+        # self.stream = open(self.filename, encoding='utf8')
+        self.stream = open(self.filename)
         self.epoch_id = 0
         self.whole_word_masking = whole_word_masking
         self.load_lines(filename)
 
     def load_lines(self, filename):
-        with open(filename, 'r', encoding = 'utf8') as i:
-            lines = i.readlines()
-        print ('Number of lines is {}'.format(len(lines)))
-        docs = [[]]
-        for line in lines:
-            tokens = line.strip('\n').strip().split()
-            if tokens:
-                docs[-1].append(tokens)
-            else:
-                docs.append([])
+        # with open(filename, 'r', encoding = 'utf8') as i:
+        #     lines = i.readlines()
+        # print ('Number of lines is {}'.format(len(lines)))
+        # docs = [[]]
+        # for line in lines:
+        #     tokens = line.strip('\n').strip().split()
+        #     if tokens:
+        #         docs[-1].append(tokens)
+        #     else:
+        #         docs.append([])
 
-        docs = [x for x in docs if x] # filter out empty lines
-
+        # docs = [x for x in docs if x] # filter out empty lines
+        
+        with open(filename,'rb') as f:
+          docs=pkl.load(f)
+        
         self.docs = docs
         random.shuffle(docs)
 
