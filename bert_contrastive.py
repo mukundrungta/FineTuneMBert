@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import random
 import numpy as np
 import argparse
+import logging
 
 from transformers import BertForPreTraining, BertTokenizer, BertConfig, BertModel
 from torch.nn import CrossEntropyLoss
@@ -49,7 +50,7 @@ class ContrastiveLoss(nn.Module):
             dist_sq = dist ** 2
             #print(x0, x1, torch.sum(torch.pow(x0-x1, 2), 1) / x0.shape[-1], dist, dist_sq)
         else:
-            print("Error Loss Metric!!")
+            logging.info("Error Loss Metric!!")
             return 0
         #dist = torch.sum( - x0 * x1 / np.sqrt(x0.shape[-1]), 1).exp()
         #dist_sq = dist ** 2
@@ -96,9 +97,9 @@ class BERTContrastivePretraining(nn.Module):
         assert sim in ['dot_product', 'cosine']
         self.sim = sim
         if self.sim == 'dot_product':
-            print ('use dot product similarity')
+            logging.info('use dot product similarity')
         else:
-            print ('use cosine similarity')
+            logging.info('use cosine similarity')
         self.temperature = temperature
 
         if use_contrastive_loss == 'True':
@@ -114,9 +115,9 @@ class BERTContrastivePretraining(nn.Module):
             self.teacher_bert = BertModel.from_pretrained(model_name)
             for param in self.teacher_bert.parameters():
                 param.requires_grad = False
-            print ('Teacher BERT initialized.')
+            logging.info('Teacher BERT initialized.')
         else:
-            print ('Train BERT with vanilla MLM loss.')
+            logging.info('Train BERT with vanilla MLM loss.')
 
     def save_model(self, ckpt_save_path):
         import os

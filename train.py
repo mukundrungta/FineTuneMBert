@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 import argparse, os
 import random
-
+from logger import set_logger
 import time
 import logging
 
@@ -60,7 +60,7 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
     device = torch.device('cuda')
 
     warmup_steps = int(0.1 * total_steps) # 10% of training steps are used for warmup
-    print ('total training steps is {}, warmup steps is {}'.format(total_steps, warmup_steps))
+    logging.info('total training steps is {}, warmup steps is {}'.format(total_steps, warmup_steps))
 
     from transformers.optimization import AdamW, get_linear_schedule_with_warmup
     optimizer = AdamW(model.parameters(), lr=args.learning_rate)
@@ -78,16 +78,16 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
 
     if args.language == 'chinese':
         from dataclass_chinese import PretrainCorpus
-        print ('Train Chinese Model.')
+        logging.info('Train Chinese Model.')
     elif args.language == 'english':
         from dataclass_english import PretrainCorpus
-        print ('Train English Model.')
+        logging.info('Train English Model.')
     else:
         raise Exception("Wrong language specification")
-    print ('Loading data...')
+    logging.info('Loading data...')
     data_lang1 = PretrainCorpus(tokenizer, args.train_data_lang1, max_len, whole_word_masking=whole_word_masking)
     data_lang2 = PretrainCorpus(tokenizer, args.train_data_lang2, max_len, whole_word_masking=whole_word_masking)
-    print ('Data loaded.')
+    logging.info('Data loaded.')
     #for truth, inp, seg, msk, attn_mask, nxt_snt_flag in data:
     while effective_batch_acm < total_steps:
         #print (all_batch_step, gradient_accumulation_steps)
@@ -163,7 +163,7 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
             # contrastive_acc = round(contrastive_acc*100,3)
             nxt_snt_acc = round(nxt_snt_acc*100,3)
 
-            print ('At training steps {}, training loss is {}, middle mlm acc is {}, \
+            logging.info('At training steps {}, training loss is {}, middle mlm acc is {}, \
                 next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, nxt_snt_acc))
             print_valid = False
 
@@ -177,9 +177,9 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
             # contrastive_acc = round(contrastive_acc*100,3)
             nxt_snt_acc = round(nxt_snt_acc*100,3)
 
-            print ('At training steps {}, training loss is {}, middle mlm acc is {}, \
+            logging.info('At training steps {}, training loss is {}, middle mlm acc is {}, \
                 next sentence acc is {}'.format(effective_batch_acm, one_train_loss, middle_acc, nxt_snt_acc))
-            print ('Saving Model...')
+            logging.info('Saving Model...')
             save_name = 'training_step_{}_middle_mlm_acc_{}_nxt_sen_acc_{}'.format(effective_batch_acm,
                 middle_acc, nxt_snt_acc)
             save_valid = False
@@ -196,26 +196,31 @@ def train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_
                 model.module.save_model(model_save_path)
             else:
                 model.save_model(model_save_path)
-            print ('Model Saved!')
+            logging.info('Model Saved!')
             train_loss = 0.
             contrastive_acc_acm, ntokens_acm, acc_nxt_acm, npairs_acm = 0., 0., 0., 0.
             mlm_acm = 0.0
-    print ('Training Finished!')
-    print ('all_batch_step {}'.format(all_batch_step))
+    logging.info('Training Finished!')
+    logging.info('all_batch_step {}'.format(all_batch_step))
     return model
 
 import argparse
 if __name__ == '__main__':
+
+    log_file = 'log_data.log'
+
+    set_logger(log_file)
+
     if torch.cuda.is_available():
-        print ('Cuda is available.')
+        logging.info('Cuda is available.')
     cuda_available = torch.cuda.is_available()
     multi_gpu_training = False
     if cuda_available:
         if torch.cuda.device_count() > 1:
             multi_gpu_training = True
-            print ('Using Multi-GPU training, number of GPU is {}'.format(torch.cuda.device_count()))
+            logging.info('Using Multi-GPU training, number of GPU is {}'.format(torch.cuda.device_count()))
         else:
-            print ('Using single GPU training.')
+            logging.info('Using single GPU training.')
     else:
         pass
 
@@ -224,7 +229,7 @@ if __name__ == '__main__':
     model_name = args.model_name
 
     from bert_contrastive import BERTContrastivePretraining
-    print ('Initializing Bert Model...')
+    logging.info('Initializing Bert Model...')
     model = BERTContrastivePretraining(model_name, args.sim, args.temperature, args.use_contrastive_loss)
 
     if cuda_available:
@@ -235,29 +240,29 @@ if __name__ == '__main__':
         model = model.to(device)
     else:
         pass
-    print ('Bert model loaded') 
+    logging.info('Bert model loaded')
 
     from transformers import BertTokenizer
     if args.whole_word_masking == 'True':
-        print ('Use whole word masking schema.')
+        logging.info('Use whole word masking schema.')
         whole_word_masking = True
     elif args.whole_word_masking == 'False':
-        print ('Use original masking schema.')
+        logging.info('Use original masking schema.')
         whole_word_masking = False
     else:
         raise Exception('Wrong whole_word_masking configuration!!!')
 
-    print ('--------------------------------------------------------------------------')
-    print ('Start Training:')
+    logging.info('--------------------------------------------------------------------------')
+    logging.info('Start Training:')
     batch_size_per_gpu, gradient_accumulation_steps, number_of_gpu, effective_batch_size = \
     args.batch_size_per_gpu, args.gradient_accumulation_steps, args.number_of_gpu, args.effective_batch_size
     assert effective_batch_size == batch_size_per_gpu * gradient_accumulation_steps * number_of_gpu
     max_len = args.max_len
 
-    print ('Effective batch size {}, maximum length {}'.format(effective_batch_size, max_len))
+    logging.info('Effective batch size {}, maximum length {}'.format(effective_batch_size, max_len))
     tokenizer = BertTokenizer.from_pretrained(model_name)
     checkpoint_save_prefix_path = args.ckpt_save_path + '/'
     model = train_model(args, model, checkpoint_save_prefix_path, gradient_accumulation_steps, tokenizer, 
         batch_size_per_gpu * number_of_gpu, max_len, whole_word_masking, args.total_steps)
-    print ('Training Finished!')
+    logging.info('Training Finished!')
 

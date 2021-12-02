@@ -1,0 +1,8 @@
+2021-12-01 21:51:05,154 | root | INFO | train.py:<module>:215 | Cuda is available.
+2021-12-01 21:51:05,155 | root | INFO | train.py:<module>:223 | Using single GPU training.
+2021-12-01 21:51:15,027 | root | INFO | train.py:<module>:232 | Initializing Bert Model...
+2021-12-01 21:51:26,398 | root | INFO | train.py:<module>:243 | Bert model loaded
+2021-12-01 21:51:26,398 | root | INFO | train.py:<module>:250 | Use original masking schema.
+2021-12-01 21:51:26,398 | root | INFO | train.py:<module>:255 | --------------------------------------------------------------------------
+2021-12-01 21:51:26,399 | root | INFO | train.py:<module>:256 | Start Training:
+2021-12-01 21:51:43,848 | root | INFO | train.py:<module>:262 | Effective batch size 1, maximum length 256
