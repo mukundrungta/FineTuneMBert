@@ -251,7 +251,7 @@ if __name__ == '__main__':
     print ('Start Training:')
     batch_size_per_gpu, gradient_accumulation_steps, number_of_gpu, effective_batch_size = \
     args.batch_size_per_gpu, args.gradient_accumulation_steps, args.number_of_gpu, args.effective_batch_size
-    assert effective_batch_size == batch_size_per_gpu * gradient_accumulation_steps * number_of_gpu
+    #assert effective_batch_size == batch_size_per_gpu * gradient_accumulation_steps * number_of_gpu
     max_len = args.max_len
 
     print ('Effective batch size {}, maximum length {}'.format(effective_batch_size, max_len))

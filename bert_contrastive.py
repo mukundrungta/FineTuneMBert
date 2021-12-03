@@ -162,14 +162,14 @@ class BERTContrastivePretraining(nn.Module):
         mlm_correct_num = torch.eq(pred_mlm, gold).float().sum().item()
         return mlm_loss, mlm_correct_num
     
-    def get_random_index_second_language(batch_size, index):
+    def get_random_index_second_language(self, batch_size, index):
         for _ in range(10):
             random_document_index = random.randint(0, batch_size - 1)
             if random_document_index != index:
                 return random_document_index
         return random.randint(0, batch_size - 1)
     
-    def compute_contrastive_loss(self, pooled_output_cls_lang1, pooled_output_cls_lang2, distmetric = 'l2'):
+    def compute_contrastive_loss(self, pooled_output_cls_lang1, pooled_output_cls_lang2, device, distmetric = 'l2'):
         batch_size, hidden_size = pooled_output_cls_lang1.size()
         feature_lang1 = []
         feature_lang2 = []
@@ -184,7 +184,9 @@ class BERTContrastivePretraining(nn.Module):
                 feature_lang1.append(hidden_rep_lang1)
                 feature_lang2.append(pooled_output_cls_lang2[index_lang2])
                 agreement.append(0)
-        agreement = torch.FloatTensor(agreement)
+        agreement = torch.FloatTensor(agreement).cuda(device)
+        feature_lang1 = torch.stack(feature_lang1).cuda(device)
+        feature_lang2 = torch.stack(feature_lang2).cuda(device)
         criterion = ContrastiveLoss(margin = 1.0, metric = distmetric)
         loss, dist_sq, dist = criterion(feature_lang1, feature_lang2, agreement)
         
@@ -223,7 +225,7 @@ class BERTContrastivePretraining(nn.Module):
         if self.use_contrastive_loss:
             truth_rep_lang2, pooled_output_cls_lang2, truth_logits_lang2, _ =  self.compute_teacher_representations(input_ids=truth_lang2, token_type_ids=seg_lang2, attention_mask=attn_msk_lang2)
             
-            contrastive_loss = self.compute_contrastive_loss(pooled_output_cls_lang1, pooled_output_cls_lang2)
+            contrastive_loss = self.compute_contrastive_loss(pooled_output_cls_lang1, pooled_output_cls_lang2,device)
 
             ''' 
                 mask_rep, truth_rep : hidden_size
